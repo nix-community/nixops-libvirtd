@@ -4,6 +4,9 @@ let
   config = (import <nixpkgs/nixos/lib/eval-config.nix> {
     inherit system;
     modules = [ {
+      imports = [
+        <nixpkgs/nixos/modules/profiles/qemu-guest.nix>
+      ];
       fileSystems."/".device = "/dev/disk/by-label/nixos";
 
       boot.loader.grub.version = 2;
@@ -13,6 +16,8 @@ let
       services.openssh.enable = true;
       services.openssh.startWhenNeeded = false;
       services.openssh.extraConfig = "UseDNS no";
+
+      services.qemuGuest.enable = true;
     } ];
   }).config;
 
