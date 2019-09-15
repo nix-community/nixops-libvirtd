@@ -6,6 +6,8 @@ let
     modules = [ {
       fileSystems."/".device = "/dev/disk/by-label/nixos";
 
+      boot.kernelParams = [ "earlycon=ttyS0" "console=ttyS0" ];
+
       boot.loader.grub.version = 2;
       boot.loader.grub.device = "/dev/sda";
       boot.loader.timeout = 0;
