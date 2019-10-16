@@ -33,6 +33,8 @@ in pkgs.vmTools.runInLinuxVM (
       buildInputs = [ pkgs.utillinux pkgs.perl ];
       exportReferencesGraph =
         [ "closure" config.system.build.toplevel ];
+
+      USER = "root";
     }
     ''
       # Create a single / partition.
