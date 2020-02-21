@@ -5,5 +5,7 @@
   options = [
     ./libvirtd.nix
   ];
-  resources = { ... }: {};
+  resources = { evalResources, zipAttrs, resourcesByType, ...}: {
+    libvirtdNetworks = evalResources ./libvirtd-network.nix (zipAttrs resourcesByType.libvirtdNetworks or []);
+  };
 }

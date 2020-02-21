@@ -1,6 +1,7 @@
 { config, pkgs, lib, ... }:
 
 with lib;
+with import <nixops/lib.nix> lib;
 
 let
   the_key = builtins.getEnv "NIXOPS_LIBVIRTD_PUBKEY";
@@ -80,10 +81,48 @@ in
         disk image as a base.
       '';
     };
-
     deployment.libvirtd.networks = mkOption {
       default = [ "default" ];
-      type = types.listOf types.str;
+      type = with types; addCheck (nonEmptyListOf
+          (either
+              str # for backward compatibility
+              (either
+                  (resource "libvirtd-network")
+                  (submodule {
+                  options = {
+                      name = mkOption {
+                          default = "";
+                          description = "The name of the network not managed by NixOps";
+                          type = str;
+                      };
+                      type = mkOption {
+                          description = "The type of the network";
+                          type = enum [ "nat" "isolate" "bridge" "direct" ];
+                      };
+                      mode = mkOption {
+                          default = "bridge";
+                          description = "The mode of the direct (macvtap) network";
+                          type = enum [ "bridge" "vepa" "private" "passthrough" ];
+                      };
+                      virtualport = mkOption {
+                          default = null;
+                          description = "The virtualport for specific bridge devices such as Open vSwitch";
+                          type = nullOr (either str (submodule {
+                              optiones = {
+                                  type = mkOption {
+                                      description = "The type of the virtualport";
+                                      type = str;
+                                  };
+                                  parameters = mkOption {
+                                      description = "The parameters of the virtualport";
+                                      type = attrset;
+                                  };
+                              };
+                          }));
+                      };
+                  };
+                  }))
+          )) (l: any (n: (builtins.isString n || (n ? type && builtins.elem n.type [ "nat" "isolated" ]) )) l);
       description = "Names of libvirt networks to attach the VM to.";
     };
 

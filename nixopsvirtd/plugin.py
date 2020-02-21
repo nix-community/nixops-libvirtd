@@ -16,5 +16,6 @@ def nixexprs():
 @nixops.plugins.hookimpl
 def load():
     return [
+        "nixopsvirtd.resources",
         "nixopsvirtd.backends.libvirtd",
     ]

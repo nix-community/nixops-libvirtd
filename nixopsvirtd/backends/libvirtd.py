@@ -42,9 +42,7 @@ class LibvirtdDefinition(MachineDefinition):
         self.storage_pool_name = x.find("attr[@name='storagePool']/string").get("value")
         self.uri = x.find("attr[@name='URI']/string").get("value")
 
-        self.networks = [
-            k.get("value")
-            for k in x.findall("attr[@name='networks']/list/string")]
+        self.networks = self.config["libvirtd"]["networks"]
         assert len(self.networks) > 0
 
 
@@ -144,7 +142,7 @@ class LibvirtdState(MachineState):
     def create(self, defn, check, allow_reboot, allow_recreate):
         assert isinstance(defn, LibvirtdDefinition)
         self.set_common_state(defn)
-        self.primary_net = defn.networks[0]
+        self.primary_net = next(n for n in defn.networks if isinstance(n, basestring) or (isinstance(n, dict) and n.get("type") in ["nat" "isolate"]))
         self.storage_pool_name = defn.storage_pool_name
         self.uri = defn.uri
 
@@ -249,13 +247,49 @@ class LibvirtdState(MachineState):
             else:
                 return ""
 
+        def vport(n):
+            v = n.get("virtualport")
+
+            if isinstance(v, basestring) or (isinstance(v, dict) and not v.get("parameters")):
+                return '<virtualport type="{0}"/>'.format(v.get("type") if isinstance(v, dict) else v)
+
+            if isinstance(v, dict) and v.get("parameters"):
+                return '''
+                  <virtualport type="{type}">
+                    <parameters {params}>
+                  </virtualport>
+                '''.format(
+                    type=v.get("type"),
+                    params=" ".join('{key}="{value}"' for key, value in v.get("parameters"))
+                )
+            return ""
+
         def iface(n):
-            return "\n".join([
+            # virtual network
+            if isinstance(n, basestring) or (isinstance(n, dict) and n.get("type") in ["nat" "isolate"]): return "\n".join([
                 '    <interface type="network">',
-                maybe_mac(n),
                 '      <source network="{0}"/>',
+                maybe_mac(n),
                 '    </interface>',
-            ]).format(n)
+            ]).format(n.get("_name", n.get("name")) if isinstance(n, dict) else n)
+
+            # macvtap device
+            if isinstance(n, dict) and n.get("type") == "direct": return "\n".join([
+                '    <interface type="direct">',
+                '      <source dev="{0}" mode="{1}"/>',
+                maybe_mac(n),
+                vport(n),
+                '    </interface>',
+            ]).format(n.get("name"), n.get("mode"))
+
+            # bridge
+            if isinstance(n, dict) and n.get("type") == "bridge": return "\n".join([
+                '    <interface type="bridge">',
+                '      <source bridge="{0}"/>',
+                maybe_mac(n),
+                vport(n),
+                '    </interface>',
+            ]).format(n.get("name"))
 
         def _make_os(defn):
             return [
