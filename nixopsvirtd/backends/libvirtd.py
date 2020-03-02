@@ -57,6 +57,7 @@ class LibvirtdState(MachineState):
     storage_volume_name = nixops.util.attr_property("libvirtd.storageVolume", None)
     storage_pool_name = nixops.util.attr_property("libvirtd.storagePool", None)
     vcpu = nixops.util.attr_property("libvirtd.vcpu", None)
+    networks = nixops.util.attr_property("libvirtd.networks", [], "json")
 
     # older deployments may not have a libvirtd.URI attribute in the state file
     # using qemu:///system in such case
@@ -132,6 +133,16 @@ class LibvirtdState(MachineState):
     def _vm_id(self):
         return "nixops-{0}-{1}".format(self.depl.uuid, self.name)
 
+    def _get_network_name(self, n):
+        if isinstance(n, basestring): return n
+        if isinstance(n, dict):       return n.get("_name", n.get("name"))
+
+    def _get_primary_net(self):
+        assert len(self.networks) > 0
+        return next(self._get_network_name(n) for n in self.networks
+                    if isinstance(n, basestring) or (isinstance(n, dict) and n.get("type") in ["nat", "isolate"])
+        )
+
     def _generate_primary_mac(self):
         mac = [0x52, 0x54, 0x00,
                random.randint(0x00, 0x7f),
@@ -142,7 +153,6 @@ class LibvirtdState(MachineState):
     def create(self, defn, check, allow_reboot, allow_recreate):
         assert isinstance(defn, LibvirtdDefinition)
         self.set_common_state(defn)
-        self.primary_net = next(n for n in defn.networks if isinstance(n, basestring) or (isinstance(n, dict) and n.get("type") in ["nat" "isolate"]))
         self.storage_pool_name = defn.storage_pool_name
         self.uri = defn.uri
 
@@ -161,9 +171,11 @@ class LibvirtdState(MachineState):
             self._prepare_storage_volume()
             self.storage_volume_name = self.vol.name()
 
-        self.domain_xml = self._make_domain_xml(defn)
-
         if self.vm_id is None:
+            self.networks = defn.networks
+            self.primary_net = self._get_primary_net()
+            self.domain_xml = self._make_domain_xml(defn)
+
             # By using "define" we ensure that the domain is
             # "persistent", as opposed to "transient" (i.e. removed on reboot).
             self._dom = self.conn.defineXML(self.domain_xml)
@@ -172,6 +184,27 @@ class LibvirtdState(MachineState):
                 return False
 
             self.vm_id = self._vm_id()
+
+        # Update networks for redeployment
+        if self.networks != defn.networks:
+            if not allow_reboot:
+                self.warn("change of the networks requires reboot; skipping")
+            else:
+                self.log('update networks...')
+                self.stop()
+
+                for n in self.networks:
+                    try:
+                        self.dom.detachDeviceFlags(self._make_iface(n), libvirt.VIR_DOMAIN_AFFECT_CONFIG)
+                    except:
+                        pass
+
+                self.networks = defn.networks
+                self.primary_net = self._get_primary_net()
+                self.domain_xml = self._make_domain_xml(defn)
+
+                for n in defn.networks:
+                    self.dom.attachDeviceFlags(self._make_iface(n), libvirt.VIR_DOMAIN_AFFECT_CONFIG)
 
         self.start()
         return True
@@ -241,56 +274,6 @@ class LibvirtdState(MachineState):
     def _make_domain_xml(self, defn):
         qemu = self._get_qemu_executable()
 
-        def maybe_mac(n):
-            if n == self.primary_net:
-                return '<mac address="' + self.primary_mac + '" />'
-            else:
-                return ""
-
-        def vport(n):
-            v = n.get("virtualport")
-
-            if isinstance(v, basestring) or (isinstance(v, dict) and not v.get("parameters")):
-                return '<virtualport type="{0}"/>'.format(v.get("type") if isinstance(v, dict) else v)
-
-            if isinstance(v, dict) and v.get("parameters"):
-                return '''
-                  <virtualport type="{type}">
-                    <parameters {params}>
-                  </virtualport>
-                '''.format(
-                    type=v.get("type"),
-                    params=" ".join('{key}="{value}"' for key, value in v.get("parameters"))
-                )
-            return ""
-
-        def iface(n):
-            # virtual network
-            if isinstance(n, basestring) or (isinstance(n, dict) and n.get("type") in ["nat" "isolate"]): return "\n".join([
-                '    <interface type="network">',
-                '      <source network="{0}"/>',
-                maybe_mac(n),
-                '    </interface>',
-            ]).format(n.get("_name", n.get("name")) if isinstance(n, dict) else n)
-
-            # macvtap device
-            if isinstance(n, dict) and n.get("type") == "direct": return "\n".join([
-                '    <interface type="direct">',
-                '      <source dev="{0}" mode="{1}"/>',
-                maybe_mac(n),
-                vport(n),
-                '    </interface>',
-            ]).format(n.get("name"), n.get("mode"))
-
-            # bridge
-            if isinstance(n, dict) and n.get("type") == "bridge": return "\n".join([
-                '    <interface type="bridge">',
-                '      <source bridge="{0}"/>',
-                maybe_mac(n),
-                vport(n),
-                '    </interface>',
-            ]).format(n.get("name"))
-
         def _make_os(defn):
             return [
                 '<os>',
@@ -313,7 +296,7 @@ class LibvirtdState(MachineState):
             '      <source file="{3}"/>',
             '      <target dev="hda"/>',
             '    </disk>',
-            '\n'.join([iface(n) for n in defn.networks]),
+            '\n'.join([self._make_iface(n) for n in defn.networks]),
             '    <graphics type="vnc" port="-1" autoport="yes"/>' if not defn.headless else "",
             '    <input type="keyboard" bus="usb"/>',
             '    <input type="mouse" bus="usb"/>',
@@ -331,6 +314,71 @@ class LibvirtdState(MachineState):
             defn.vcpu,
             defn.domain_type
         )
+
+    def _make_iface(self, n):
+        def maybe_mac(n):
+            if self._get_network_name(n) == self.primary_net:
+                return '<mac address="' + self.primary_mac + '" />'
+            else:
+                return ""
+
+        def virt_port(n):
+            v = n.get("virtualport")
+
+            if isinstance(v, basestring) or (isinstance(v, dict) and not v.get("parameters")):
+                return '<virtualport type="{0}"/>'.format(v.get("type") if isinstance(v, dict) else v)
+
+            if isinstance(v, dict) and v.get("parameters"):
+                return '''
+                  <virtualport type="{type}">
+                    <parameters {params}>
+                  </virtualport>
+                '''.format(
+                    type=v.get("type"),
+                    params=" ".join('{key}="{value}"' for key, value in v.get("parameters"))
+                )
+            return ""
+
+        # virtual network
+        if isinstance(n, basestring) or (isinstance(n, dict) and n.get("type") in ["nat", "isolate"]):
+            return '''
+              <interface type="network">
+                <source network="{name}"/>
+                {mac}
+              </interface>
+            '''.format(
+                name=self._get_network_name(n),
+                mac=maybe_mac(n)
+            )
+
+         # macvtap device
+        if isinstance(n, dict) and n.get("type") == "direct":
+            return '''
+              <interface type="direct">
+                <source dev="{name}" mode="{mode}"/>
+                {mac}
+                {vport}
+              </interface>
+            '''.format(
+                name=n.get("name"),
+                mode=n.get("mode"),
+                mac=maybe_mac(n),
+                vport=virt_port(n),
+            )
+
+         # bridge
+        if isinstance(n, dict) and n.get("type") == "bridge":
+            return '''
+              <interface type="bridge">
+                <source bridge="{name}"/>
+                {mac}
+                {vport}
+              </interface>
+            '''.format(
+                name=n.get("name"),
+                mac=maybe_mac(n),
+                vport=virt_port(n),
+            )
 
     def _parse_ip(self):
         """
