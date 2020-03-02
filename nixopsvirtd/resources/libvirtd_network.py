@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Automatic provisioning of Virtualbox Networks.
+# Automatic provisioning of Libvirt Virtual Networks.
 
 import os
 import ipaddress
@@ -27,11 +27,15 @@ class LibvirtdNetworkDefinition(ResourceDefinition):
 
         self.static_ips = { x.find("attr[@name='machine']/string").get("value"):
                             x.find("attr[@name='address']/string").get("value") for x in xml.findall("attrs/attr[@name='staticIPs']/list/attrs") }
+        self.static_ips.update({
+            x.find("string").get("value"): x.get("name")
+            for x in xml.findall("attrs/attr[@name='staticIPs']/attrs/attr")
+        })
 
         self.uri = xml.find("attrs/attr[@name='URI']/string").get("value")
 
     def show_type(self):
-        return "{0} [{1:8} {2}]".format(self.get_type(), self.network_type, self.network_cidr)
+        return "{0} [{1} {2}]".format(self.get_type(), self.network_type, self.network_cidr)
 
 class LibvirtdNetworkState(ResourceState):
     """State of the Libvirtd Network"""
@@ -39,7 +43,7 @@ class LibvirtdNetworkState(ResourceState):
     network_name  = attr_property("libvirtd.network_name", None)
     network_type  = attr_property("libvirtd.network_type", None)
     network_cidr  = attr_property("libvirtd.network_cidr", None)
-    static_ips    = attr_property("libvirtd.static_ips", [], "json")
+    static_ips    = attr_property("libvirtd.static_ips", {}, "json")
 
     uri = attr_property("libvirtd.URI", "qemu:///system")
 
@@ -102,7 +106,7 @@ class LibvirtdNetworkState(ResourceState):
         subnet = ipaddress.ip_network(unicode(defn.network_cidr), strict=False)
 
         if self.state != self.UP:
-            self.log("Creating {}...".format(self.full_name))
+            self.log("creating {}...".format(self.full_name))
             self.network_type = defn.network_type
             self.network_cidr = defn.network_cidr
             self.static_ips   = defn.static_ips
@@ -111,7 +115,7 @@ class LibvirtdNetworkState(ResourceState):
             self._net = self.conn.networkDefineXML('''
               <network>
                 <name>{name}</name>
-               {maybeForwardTag}
+                {maybeForward}
                 <ip address="{gateway}" netmask="{netmask}">
                   <dhcp>
                     <range start="{lowerip}" end="{upperip}"/>
@@ -121,12 +125,12 @@ class LibvirtdNetworkState(ResourceState):
               </network>
             '''.format(
                 name=self.name,
-                maybeForwardTag='<forward mode="nat"/>' if defn.network_type == "nat" else "",
+                maybeForward='<forward mode="nat"/>' if defn.network_type == "nat" else "",
                 gateway=subnet[1],
                 netmask=subnet.netmask,
                 lowerip=subnet[2],
                 upperip=subnet[-2],
-                dhcpHosts="".join("<host name='{name}' ip='{ip}' />".format(
+                dhcpHosts="".join("<host name='{name}' ip='{ip}'/>".format(
                     name=machine,
                     ip=address,
                 ) for machine, address in defn.static_ips.iteritems())
@@ -138,8 +142,8 @@ class LibvirtdNetworkState(ResourceState):
             self.state = self.UP
             return
 
-        if self._can_update(defn, allow_reboot, allow_recreate):
-            self.log("Updating {}...".format(self.full_name))
+        if self._need_update(defn, allow_reboot, allow_recreate):
+            self.log("updating {}...".format(self.full_name))
 
             if self.network_type != defn.network_type:
                 self.conn.networkUpdate(
@@ -158,7 +162,7 @@ class LibvirtdNetworkState(ResourceState):
                             libvirt.VIR_NETWORK_UPDATE_COMMAND_DELETE,
                             libvirt.VIR_NETWORK_SECTION_IP_DHCP_HOST,
                             -1,
-                            "<host name='{name}' ip='{ip}' />".format(
+                            "<host name='{name}' ip='{ip}'/>".format(
                                 name=machine,
                                 ip=address,
                             )
@@ -178,7 +182,7 @@ class LibvirtdNetworkState(ResourceState):
                                         libvirt.VIR_NETWORK_UPDATE_COMMAND_MODIFY if self.static_ips.get(machine) else libvirt.VIR_NETWORK_UPDATE_COMMAND_ADD_LAST,
                                         libvirt.VIR_NETWORK_SECTION_IP_DHCP_HOST,
                                         -1,
-                                        "<host name='{name}' ip='{ip}' />".format(
+                                        "<host name='{name}' ip='{ip}'/>".format(
                                             name=machine,
                                             ip=address,
                                         )
@@ -194,13 +198,20 @@ class LibvirtdNetworkState(ResourceState):
 
                 self.static_ips = defn.static_ips
 
-    def _can_update(self, defn, allow_reboot, allow_recreate):
+    def _need_update(self, defn, allow_reboot, allow_recreate):
         if self.uri != defn.uri:
             self.warn("Change of the connection URI from {0} to {1} is not supported; skipping".format(self.uri, defn.uri))
             return False
 
         if self.network_cidr != defn.network_cidr:
             self.warn("Change of the network CIDR from {0} to {1} is not supported; skipping".format(self.network_cidr, defn.network_cidr))
+            return False
+
+        if self.network_type == defn.network_type and self.static_ips == defn.static_ips: # no changes
+            return False
+
+        if self.network_type != defn.network_type and not allow_reboot:
+            self.warn("change of the network type requires reboot; skipping")
             return False
 
         # checkme: the state of the attached machine should also be considered
