@@ -186,15 +186,16 @@ class LibvirtdNetworkState(ResourceState):
                                             name=machine,
                                             ip=address,
                                         )
+                                        ,
+                                        libvirt.VIR_NETWORK_UPDATE_AFFECT_CONFIG | libvirt.VIR_NETWORK_UPDATE_AFFECT_LIVE
                                     )
                                 except Exception as e:
-                                    print(e)
                                     self.warn("Cannot assign static IP '{0}' to machine '{1}' in subnet '{2}'".format(address, machine, defn.network_cidr))
-                        break;
+                                break;
+                        else:
+                            self.warn("Cannot assign static IP '{0}' to non-attached machine '{1}'".format(address, machine))
                     else:
-                        self.warn("Cannot assign static IP '{0}' to non-attached machine '{1}'".format(address, machine))
-                else:
-                    self.warn("Cannot assign static IP '{0}' to non-existent machine '{1}'".format(address, machine))
+                        self.warn("Cannot assign static IP '{0}' to non-existent machine '{1}'".format(address, machine))
 
                 self.static_ips = defn.static_ips
 
