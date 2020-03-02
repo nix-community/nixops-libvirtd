@@ -17,12 +17,19 @@
     node1 = {
         deployment.targetEnv = "libvirtd";
         deployment.libvirtd.imageDir = "/var/lib/libvirt/images";
-        deployment.libvirtd.networks = [ "net2" ];
+        deployment.libvirtd.networks = [
+            "net2"
+            # {
+            #     name = "ovsbr0";
+            #     type = "bridge";
+            #     virtualport = "openvswitch";
+            # }
+        ];
     };
 
-    node2 = {
+    node2 = {resources, ...}: {
         deployment.targetEnv = "libvirtd";
         deployment.libvirtd.imageDir = "/var/lib/libvirt/images";
-        deployment.libvirtd.networks = [ "net2" ];
+        deployment.libvirtd.networks = [ resources.libvirtdNetworks.net2 ];
     };
 }
