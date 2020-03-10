@@ -139,9 +139,7 @@ class LibvirtdState(MachineState):
 
     def _get_primary_net(self):
         assert len(self.networks) > 0
-        return next(self._get_network_name(n) for n in self.networks
-                    if isinstance(n, basestring) or (isinstance(n, dict) and n.get("type") in ["nat", "isolate"])
-        )
+        return self._get_network_name(self.networks[0])
 
     def _generate_primary_mac(self):
         mac = [0x52, 0x54, 0x00,

@@ -83,7 +83,7 @@ in
     };
     deployment.libvirtd.networks = mkOption {
       default = [ "default" ];
-      type = with types; addCheck (nonEmptyListOf
+      type = with types; nonEmptyListOf
           (either
               str # for backward compatibility
               (either
@@ -122,7 +122,7 @@ in
                       };
                   };
                   }))
-          )) (l: any (n: (builtins.isString n || (n ? type && builtins.elem n.type [ "nat" "isolated" ]) )) l);
+          );
       description = "Names of libvirt networks to attach the VM to.";
     };
 
