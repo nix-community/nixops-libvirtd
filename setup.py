@@ -9,7 +9,7 @@ setup(name='nixops-libvirtd',
       url='https://github.com/AmineChikhaoui/nixops-libvirtd',
       maintainer='Amine Chikhaoui',
       maintainer_email='amine.chikhaoui91@gmail.com',
-      packages=['nixopsvirtd', 'nixopsvirtd.backends'],
+      packages=['nixopsvirtd', 'nixopsvirtd.backends', 'nixopsvirtd.resources'],
       entry_points={'nixops': ['virtd = nixopsvirtd.plugin']},
       py_modules=['plugin']
 )

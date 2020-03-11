@@ -42,9 +42,9 @@ class LibvirtdDefinition(MachineDefinition):
         self.storage_pool_name = x.find("attr[@name='storagePool']/string").get("value")
         self.uri = x.find("attr[@name='URI']/string").get("value")
 
-        self.networks = [
-            k.get("value")
-            for k in x.findall("attr[@name='networks']/list/string")]
+        self.networks = self.config["libvirtd"]["networks"]
+        self.private_ipv4 = self.config["privateIPv4"]
+
         assert len(self.networks) > 0
 
 
@@ -54,11 +54,13 @@ class LibvirtdState(MachineState):
     client_private_key = nixops.util.attr_property("libvirtd.clientPrivateKey", None)
     primary_net = nixops.util.attr_property("libvirtd.primaryNet", None)
     primary_mac = nixops.util.attr_property("libvirtd.primaryMAC", None)
+    primary_ip   = nixops.util.attr_property("libvirtd.primaryIp", None)
     domain_xml = nixops.util.attr_property("libvirtd.domainXML", None)
     disk_path = nixops.util.attr_property("libvirtd.diskPath", None)
     storage_volume_name = nixops.util.attr_property("libvirtd.storageVolume", None)
     storage_pool_name = nixops.util.attr_property("libvirtd.storagePool", None)
     vcpu = nixops.util.attr_property("libvirtd.vcpu", None)
+    networks = nixops.util.attr_property("libvirtd.networks", [], "json")
 
     # older deployments may not have a libvirtd.URI attribute in the state file
     # using qemu:///system in such case
@@ -134,6 +136,14 @@ class LibvirtdState(MachineState):
     def _vm_id(self):
         return "nixops-{0}-{1}".format(self.depl.uuid, self.name)
 
+    def _get_network_name(self, n):
+        if isinstance(n, basestring): return n
+        if isinstance(n, dict):       return n.get("_name", n.get("name"))
+
+    def _get_primary_net(self):
+        assert len(self.networks) > 0
+        return self._get_network_name(self.networks[0])
+
     def _generate_primary_mac(self):
         mac = [0x52, 0x54, 0x00,
                random.randint(0x00, 0x7f),
@@ -144,7 +154,6 @@ class LibvirtdState(MachineState):
     def create(self, defn, check, allow_reboot, allow_recreate):
         assert isinstance(defn, LibvirtdDefinition)
         self.set_common_state(defn)
-        self.primary_net = defn.networks[0]
         self.storage_pool_name = defn.storage_pool_name
         self.uri = defn.uri
 
@@ -163,9 +172,14 @@ class LibvirtdState(MachineState):
             self._prepare_storage_volume()
             self.storage_volume_name = self.vol.name()
 
-        self.domain_xml = self._make_domain_xml(defn)
+        if defn.private_ipv4:
+            self.primary_ip = defn.private_ipv4;
 
         if self.vm_id is None:
+            self.networks = defn.networks
+            self.primary_net = self._get_primary_net()
+            self.domain_xml = self._make_domain_xml(defn)
+
             # By using "define" we ensure that the domain is
             # "persistent", as opposed to "transient" (i.e. removed on reboot).
             self._dom = self.conn.defineXML(self.domain_xml)
@@ -174,6 +188,27 @@ class LibvirtdState(MachineState):
                 return False
 
             self.vm_id = self._vm_id()
+
+        # Update networks for redeployment
+        if self.networks != defn.networks:
+            if not allow_reboot:
+                self.warn("change of the networks requires reboot; skipping")
+            else:
+                self.log('update networks...')
+                self.stop()
+
+                for n in self.networks:
+                    try:
+                        self.dom.detachDeviceFlags(self._make_iface(n), libvirt.VIR_DOMAIN_AFFECT_CONFIG)
+                    except:
+                        pass
+
+                self.networks = defn.networks
+                self.primary_net = self._get_primary_net()
+                self.domain_xml = self._make_domain_xml(defn)
+
+                for n in defn.networks:
+                    self.dom.attachDeviceFlags(self._make_iface(n), libvirt.VIR_DOMAIN_AFFECT_CONFIG)
 
         self.start()
         return True
@@ -243,20 +278,6 @@ class LibvirtdState(MachineState):
     def _make_domain_xml(self, defn):
         qemu = self._get_qemu_executable()
 
-        def maybe_mac(n):
-            if n == self.primary_net:
-                return '<mac address="' + self.primary_mac + '" />'
-            else:
-                return ""
-
-        def iface(n):
-            return "\n".join([
-                '    <interface type="network">',
-                maybe_mac(n),
-                '      <source network="{0}"/>',
-                '    </interface>',
-            ]).format(n)
-
         def _make_os(defn):
             return [
                 '<os>',
@@ -279,7 +300,7 @@ class LibvirtdState(MachineState):
             '      <source file="{3}"/>',
             '      <target dev="hda"/>',
             '    </disk>',
-            '\n'.join([iface(n) for n in defn.networks]),
+            '\n'.join([self._make_iface(n) for n in defn.networks]),
             '    <graphics type="vnc" port="-1" autoport="yes"/>' if not defn.headless else "",
             '    <input type="keyboard" bus="usb"/>',
             '    <input type="mouse" bus="usb"/>',
@@ -298,10 +319,78 @@ class LibvirtdState(MachineState):
             defn.domain_type
         )
 
+    def _make_iface(self, n):
+        def maybe_mac(n):
+            if self._get_network_name(n) == self.primary_net:
+                return '<mac address="' + self.primary_mac + '" />'
+            else:
+                return ""
+
+        def virt_port(n):
+            v = n.get("virtualport")
+
+            if isinstance(v, basestring) or (isinstance(v, dict) and not v.get("parameters")):
+                return '<virtualport type="{0}"/>'.format(v.get("type") if isinstance(v, dict) else v)
+
+            if isinstance(v, dict) and v.get("parameters"):
+                return '''
+                  <virtualport type="{type}">
+                    <parameters {params}>
+                  </virtualport>
+                '''.format(
+                    type=v.get("type"),
+                    params=" ".join('{key}="{value}"' for key, value in v.get("parameters"))
+                )
+            return ""
+
+        # virtual network
+        if isinstance(n, basestring) or (isinstance(n, dict) and n.get("type") in ["nat", "isolate"]):
+            return '''
+              <interface type="network">
+                <source network="{name}"/>
+                {mac}
+              </interface>
+            '''.format(
+                name=self._get_network_name(n),
+                mac=maybe_mac(n)
+            )
+
+         # macvtap device
+        if isinstance(n, dict) and n.get("type") == "direct":
+            return '''
+              <interface type="direct">
+                <source dev="{name}" mode="{mode}"/>
+                {mac}
+                {vport}
+              </interface>
+            '''.format(
+                name=n.get("name"),
+                mode=n.get("mode"),
+                mac=maybe_mac(n),
+                vport=virt_port(n),
+            )
+
+         # bridge
+        if isinstance(n, dict) and n.get("type") == "bridge":
+            return '''
+              <interface type="bridge">
+                <source bridge="{name}"/>
+                {mac}
+                {vport}
+              </interface>
+            '''.format(
+                name=n.get("name"),
+                mac=maybe_mac(n),
+                vport=virt_port(n),
+            )
+
     def _parse_ip(self):
         """
         return an ip v4
         """
+        if self.primary_ip:
+            return self.primary_ip
+
         # alternative is VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE if qemu agent is available
         ifaces = self.dom.interfaceAddresses(libvirt.VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE, 0)
         if ifaces is None:

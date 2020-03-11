@@ -18,7 +18,7 @@ in
           done
         '';
         buildInputs = [ python2Packages.nose python2Packages.coverage ];
-        propagatedBuildInputs = [ python2Packages.libvirt ];
+        propagatedBuildInputs = with python2Packages; [ libvirt ipaddress ];
         doCheck = true;
         postInstall = ''
           mkdir -p $out/share/nix/nixops-libvirtd
