@@ -43,6 +43,8 @@ class LibvirtdDefinition(MachineDefinition):
         self.uri = x.find("attr[@name='URI']/string").get("value")
 
         self.networks = self.config["libvirtd"]["networks"]
+        self.private_ipv4 = self.config["privateIPv4"]
+
         assert len(self.networks) > 0
 
 
@@ -52,6 +54,7 @@ class LibvirtdState(MachineState):
     client_private_key = nixops.util.attr_property("libvirtd.clientPrivateKey", None)
     primary_net = nixops.util.attr_property("libvirtd.primaryNet", None)
     primary_mac = nixops.util.attr_property("libvirtd.primaryMAC", None)
+    primary_ip   = nixops.util.attr_property("libvirtd.primaryIp", None)
     domain_xml = nixops.util.attr_property("libvirtd.domainXML", None)
     disk_path = nixops.util.attr_property("libvirtd.diskPath", None)
     storage_volume_name = nixops.util.attr_property("libvirtd.storageVolume", None)
@@ -168,6 +171,9 @@ class LibvirtdState(MachineState):
         if self.storage_volume_name is None:
             self._prepare_storage_volume()
             self.storage_volume_name = self.vol.name()
+
+        if defn.private_ipv4:
+            self.primary_ip = defn.private_ipv4;
 
         if self.vm_id is None:
             self.networks = defn.networks
@@ -382,6 +388,9 @@ class LibvirtdState(MachineState):
         """
         return an ip v4
         """
+        if self.primary_ip:
+            return self.primary_ip
+
         # alternative is VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE if qemu agent is available
         ifaces = self.dom.interfaceAddresses(libvirt.VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE, 0)
         if ifaces is None:
