@@ -1,11 +1,11 @@
 import os.path
 import nixops.plugins
 
+
 @nixops.plugins.hookimpl
 def nixexprs():
-    return [
-        os.path.dirname(__file__) + "/nix"
-    ]
+    return [os.path.dirname(__file__) + "/nix"]
+
 
 @nixops.plugins.hookimpl
 def load():
