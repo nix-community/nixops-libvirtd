@@ -5,4 +5,10 @@ self: super: {
     format = "pyproject";
     nativeBuildInputs = nativeBuildInputs ++ [ self.poetry ];
   });
+
+  libvirt-python = super.libvirt-python.overridePythonAttrs({ nativeBuildInputs ? [], ... }: {
+    format = "pyproject";
+    nativeBuildInputs = nativeBuildInputs ++ [ pkgs.pkgconfig ];
+    propagatedBuildInputs = [ pkgs.libvirt ];
+  });
 }

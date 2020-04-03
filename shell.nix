@@ -8,5 +8,7 @@ in pkgs.mkShell {
       overrides = pkgs.poetry2nix.overrides.withDefaults overrides;
     })
     pkgs.poetry
+    pkgs.pkgconfig
+    pkgs.libvirt
   ];
 }
