@@ -160,7 +160,7 @@ class LibvirtdState(MachineState):
             random.randint(0x00, 0xFF),
             random.randint(0x00, 0xFF),
         ]
-        self.primary_mac = ":".join(map(lambda x: "%02x" % x, mac))
+        self.primary_mac = ":".join(["%02x" % x for x in mac])
 
     def create(self, defn, check, allow_reboot, allow_recreate):
         assert isinstance(defn, LibvirtdDefinition)
@@ -360,7 +360,7 @@ class LibvirtdState(MachineState):
             self.log("Failed to get domain interfaces")
             return
 
-        for (name, val) in ifaces.iteritems():
+        for (name, val) in ifaces.items():
             if val["addrs"]:
                 for ipaddr in val["addrs"]:
                     return ipaddr["addr"]
