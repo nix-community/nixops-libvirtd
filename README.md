@@ -10,3 +10,37 @@ machines in a network or cloud.
 * [Issue Tracker](https://github.com/NixOS/nixops/issues)
 * [Mailing list / Google group](https://groups.google.com/forum/#!forum/nixops-users)
 * [IRC - #nixos on freenode.net](irc://irc.freenode.net/#nixos)
+
+## Quick Start
+
+### Prepare libvirtd
+
+In order to use the libvirtd backend, a couple of manual steps need to be
+taken.
+
+*Note:* The libvirtd backend is currently supported only on NixOS.
+
+Configure your host NixOS machine to enable libvirtd daemon,
+add your user to libvirtd group and change firewall not to filter DHCP packets.
+
+```nix
+virtualisation.libvirtd.enable = true;
+users.extraUsers.myuser.extraGroups = [ "libvirtd" ];
+networking.firewall.checkReversePath = false;
+```
+
+Next we have to make sure our user has access to create images by executing:
+
+```sh
+sudo mkdir /var/lib/libvirt/images
+sudo chgrp libvirtd /var/lib/libvirt/images
+sudo chmod g+w /var/lib/libvirt/images
+```
+
+Create the default libvirtd storage pool:
+
+```sh
+virsh pool-define-as default dir --target /var/lib/libvirt/images
+virsh pool-autostart default
+virsh pool-start default
+```
