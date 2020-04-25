@@ -44,3 +44,19 @@ virsh pool-define-as default dir --target /var/lib/libvirt/images
 virsh pool-autostart default
 virsh pool-start default
 ```
+
+### Deploy the example machine
+
+Create and deploy the trivial example:
+
+```sh
+nixops create -d example-libvirtd examples/trivial-virtd.nix
+nixops deploy -d example-libvirtd
+```
+
+Your new machine doesn't do much by defaualt, but you may connect to it by
+running:
+
+```sh
+nixops ssh -d example-libvirtd machine
+```
