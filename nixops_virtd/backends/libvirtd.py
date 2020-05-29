@@ -18,6 +18,7 @@ from nixops.backends import MachineDefinition, MachineState
 # to prevent libvirt errors from appearing on screen, see
 # https://www.redhat.com/archives/libvirt-users/2017-August/msg00011.html
 
+
 class LibvirtdDefinition(MachineDefinition):
     """Definition of a trivial machine."""
 
@@ -34,7 +35,7 @@ class LibvirtdDefinition(MachineDefinition):
         self.memory_size = x.find("attr[@name='memorySize']/int").get("value")
         self.extra_devices = x.find("attr[@name='extraDevicesXML']/string").get("value")
         self.extra_domain = x.find("attr[@name='extraDomainXML']/string").get("value")
-        self.headless = x.find("attr[@name='headless']/bool").get("value") == 'true'
+        self.headless = x.find("attr[@name='headless']/bool").get("value") == "true"
         self.domain_type = x.find("attr[@name='domainType']/string").get("value")
         self.kernel = x.find("attr[@name='kernel']/string").get("value")
         self.initrd = x.find("attr[@name='initrd']/string").get("value")
@@ -43,8 +44,8 @@ class LibvirtdDefinition(MachineDefinition):
         self.uri = x.find("attr[@name='URI']/string").get("value")
 
         self.networks = [
-            k.get("value")
-            for k in x.findall("attr[@name='networks']/list/string")]
+            k.get("value") for k in x.findall("attr[@name='networks']/list/string")
+        ]
         assert len(self.networks) > 0
 
 
@@ -78,15 +79,19 @@ class LibvirtdState(MachineState):
     @property
     def conn(self):
         if self._conn is None:
-            self.logger.log('Connecting to {}...'.format(self.uri))
+            self.logger.log("Connecting to {}...".format(self.uri))
             try:
                 self._conn = libvirt.open(self.uri)
             except libvirt.libvirtError as error:
                 self.logger.error(error.get_error_message())
                 if error.get_error_code() == libvirt.VIR_ERR_NO_CONNECT:
                     # this error code usually means "no connection driver available for qemu:///..."
-                    self.logger.error('make sure qemu-system-x86_64 is installed on the target host')
-                raise Exception('Failed to connect to the hypervisor at {}'.format(self.uri))
+                    self.logger.error(
+                        "make sure qemu-system-x86_64 is installed on the target host"
+                    )
+                raise Exception(
+                    "Failed to connect to the hypervisor at {}".format(self.uri)
+                )
         return self._conn
 
     @property
@@ -112,19 +117,31 @@ class LibvirtdState(MachineState):
 
     def get_console_output(self):
         import sys
-        return self._logged_exec(["virsh", "-c", self.uri, 'console', self.vm_id.decode()],
-                stdin=sys.stdin)
+
+        return self._logged_exec(
+            ["virsh", "-c", self.uri, "console", self.vm_id.decode()], stdin=sys.stdin
+        )
 
     def get_ssh_private_key_file(self):
-        return self._ssh_private_key_file or self.write_ssh_private_key(self.client_private_key)
+        return self._ssh_private_key_file or self.write_ssh_private_key(
+            self.client_private_key
+        )
 
     def get_ssh_flags(self, *args, **kwargs):
         super_flags = super(LibvirtdState, self).get_ssh_flags(*args, **kwargs)
-        return super_flags + ["-o", "StrictHostKeyChecking=accept-new",
-                              "-i", self.get_ssh_private_key_file()]
+        return super_flags + [
+            "-o",
+            "StrictHostKeyChecking=accept-new",
+            "-i",
+            self.get_ssh_private_key_file(),
+        ]
 
     def get_physical_spec(self):
-        return {('users', 'extraUsers', 'root', 'openssh', 'authorizedKeys', 'keys'): [self.client_public_key]}
+        return {
+            ("users", "extraUsers", "root", "openssh", "authorizedKeys", "keys"): [
+                self.client_public_key
+            ]
+        }
 
     def address_to(self, m):
         if isinstance(m, LibvirtdState):
@@ -135,11 +152,15 @@ class LibvirtdState(MachineState):
         return "nixops-{0}-{1}".format(self.depl.uuid, self.name)
 
     def _generate_primary_mac(self):
-        mac = [0x52, 0x54, 0x00,
-               random.randint(0x00, 0x7f),
-               random.randint(0x00, 0xff),
-               random.randint(0x00, 0xff)]
-        self.primary_mac = ':'.join(map(lambda x: "%02x" % x, mac))
+        mac = [
+            0x52,
+            0x54,
+            0x00,
+            random.randint(0x00, 0x7F),
+            random.randint(0x00, 0xFF),
+            random.randint(0x00, 0xFF),
+        ]
+        self.primary_mac = ":".join(["%02x" % x for x in mac])
 
     def create(self, defn, check, allow_reboot, allow_recreate):
         assert isinstance(defn, LibvirtdDefinition)
@@ -151,13 +172,16 @@ class LibvirtdState(MachineState):
         # required for virConnectGetDomainCapabilities()
         # https://libvirt.org/formatdomaincaps.html
         if self.conn.getLibVersion() < 1002007:
-            raise Exception('libvirt 1.2.7 or newer is required at the target host')
+            raise Exception("libvirt 1.2.7 or newer is required at the target host")
 
         if not self.primary_mac:
             self._generate_primary_mac()
 
         if not self.client_public_key:
-            (self.client_private_key, self.client_public_key) = nixops.util.create_key_pair()
+            (
+                self.client_private_key,
+                self.client_public_key,
+            ) = nixops.util.create_key_pair()
 
         if self.storage_volume_name is None:
             self._prepare_storage_volume()
@@ -170,7 +194,7 @@ class LibvirtdState(MachineState):
             # "persistent", as opposed to "transient" (i.e. removed on reboot).
             self._dom = self.conn.defineXML(self.domain_xml)
             if self._dom is None:
-                self.log('Failed to register domain XML with the hypervisor')
+                self.log("Failed to register domain XML with the hypervisor")
                 return False
 
             self.vm_id = self._vm_id()
@@ -183,28 +207,45 @@ class LibvirtdState(MachineState):
         newEnv = copy.deepcopy(os.environ)
         newEnv["NIXOPS_LIBVIRTD_PUBKEY"] = self.client_public_key
 
-        temp_image_path = os.path.join(self.depl.tempdir, 'libvirtd-image-{}'.format(self.name))
+        temp_image_path = os.path.join(
+            self.depl.tempdir, "libvirtd-image-{}".format(self.name)
+        )
         base_image = self._logged_exec(
-            ["nix-build"] + self.depl._eval_flags(self.depl.nix_exprs) +
-            ["--arg", "checkConfigurationOptions", "false",
-             "-A", "nodes.{0}.config.deployment.libvirtd.baseImage".format(self.name),
-             "-o", temp_image_path],
-            capture_stdout=True, env=newEnv).rstrip()
+            ["nix-build"]
+            + self.depl._eval_flags(self.depl.nix_exprs)
+            + [
+                "--arg",
+                "checkConfigurationOptions",
+                "false",
+                "-A",
+                "nodes.{0}.config.deployment.libvirtd.baseImage".format(self.name),
+                "-o",
+                temp_image_path,
+            ],
+            capture_stdout=True,
+            env=newEnv,
+        ).rstrip()
 
-        temp_disk_path = os.path.join(self.depl.tempdir, 'disk-{}.qcow2'.format(self.name))
-        shutil.copyfile(os.path.join(temp_image_path, 'nixos.qcow2'), temp_disk_path)
+        temp_disk_path = os.path.join(
+            self.depl.tempdir, "disk-{}.qcow2".format(self.name)
+        )
+        shutil.copyfile(os.path.join(temp_image_path, "nixos.qcow2"), temp_disk_path)
 
         self.logger.log("uploading disk image...")
         image_info = self._get_image_info(temp_disk_path)
-        self._vol = self._create_volume(image_info['virtual-size'], image_info['actual-size'])
-        self._upload_volume(temp_disk_path, image_info['actual-size'])
+        self._vol = self._create_volume(
+            image_info["virtual-size"], image_info["actual-size"]
+        )
+        self._upload_volume(temp_disk_path, image_info["actual-size"])
 
     def _get_image_info(self, filename):
-        output = self._logged_exec(["qemu-img", "info", "--output", "json", filename], capture_stdout=True)
+        output = self._logged_exec(
+            ["qemu-img", "info", "--output", "json", filename], capture_stdout=True
+        )
         return json.loads(output)
 
     def _create_volume(self, virtual_size, actual_size):
-        xml = '''
+        xml = """
         <volume>
           <name>{name}</name>
           <capacity>{virtual_size}</capacity>
@@ -213,7 +254,7 @@ class LibvirtdState(MachineState):
             <format type="qcow2"/>
           </target>
         </volume>
-        '''.format(
+        """.format(
             name="{}.qcow2".format(self._vm_id()),
             virtual_size=virtual_size,
             actual_size=actual_size,
@@ -229,16 +270,16 @@ class LibvirtdState(MachineState):
         def read_file(stream, nbytes, f):
             return f.read(nbytes)
 
-        with open(filename, 'rb') as f:
+        with open(filename, "rb") as f:
             stream.sendAll(read_file, f)
             stream.finish()
 
     def _get_qemu_executable(self):
         domaincaps_xml = self.conn.getDomainCapabilities(
-            emulatorbin=None, arch='x86_64', machine=None, virttype='kvm',
+            emulatorbin=None, arch="x86_64", machine=None, virttype="kvm",
         )
         domaincaps = ElementTree.fromstring(domaincaps_xml)
-        return domaincaps.find('./path').text.strip()
+        return domaincaps.find("./path").text.strip()
 
     def _make_domain_xml(self, defn):
         qemu = self._get_qemu_executable()
@@ -250,44 +291,53 @@ class LibvirtdState(MachineState):
                 return ""
 
         def iface(n):
-            return "\n".join([
-                '    <interface type="network">',
-                maybe_mac(n),
-                '      <source network="{0}"/>',
-                '    </interface>',
-            ]).format(n)
+            return "\n".join(
+                [
+                    '    <interface type="network">',
+                    maybe_mac(n),
+                    '      <source network="{0}"/>',
+                    "    </interface>",
+                ]
+            ).format(n)
 
         def _make_os(defn):
             return [
-                '<os>',
+                "<os>",
                 '    <type arch="x86_64">hvm</type>',
                 "    <kernel>%s</kernel>" % defn.kernel,
                 "    <initrd>%s</initrd>" % defn.initrd if len(defn.kernel) > 0 else "",
-                "    <cmdline>%s</cmdline>" % defn.cmdline if len(defn.kernel) > 0 else "",
-                '</os>']
+                "    <cmdline>%s</cmdline>" % defn.cmdline
+                if len(defn.kernel) > 0
+                else "",
+                "</os>",
+            ]
 
-        domain_fmt = "\n".join([
-            '<domain type="{5}">',
-            '  <name>{0}</name>',
-            '  <memory unit="MiB">{1}</memory>',
-            '  <vcpu>{4}</vcpu>',
-            '\n'.join(_make_os(defn)),
-            '  <devices>',
-            '    <emulator>{2}</emulator>',
-            '    <disk type="file" device="disk">',
-            '      <driver name="qemu" type="qcow2"/>',
-            '      <source file="{3}"/>',
-            '      <target dev="hda"/>',
-            '    </disk>',
-            '\n'.join([iface(n) for n in defn.networks]),
-            '    <graphics type="vnc" port="-1" autoport="yes"/>' if not defn.headless else "",
-            '    <input type="keyboard" bus="usb"/>',
-            '    <input type="mouse" bus="usb"/>',
-            defn.extra_devices,
-            '  </devices>',
-            defn.extra_domain,
-            '</domain>',
-        ])
+        domain_fmt = "\n".join(
+            [
+                '<domain type="{5}">',
+                "  <name>{0}</name>",
+                '  <memory unit="MiB">{1}</memory>',
+                "  <vcpu>{4}</vcpu>",
+                "\n".join(_make_os(defn)),
+                "  <devices>",
+                "    <emulator>{2}</emulator>",
+                '    <disk type="file" device="disk">',
+                '      <driver name="qemu" type="qcow2"/>',
+                '      <source file="{3}"/>',
+                '      <target dev="hda"/>',
+                "    </disk>",
+                "\n".join([iface(n) for n in defn.networks]),
+                '    <graphics type="vnc" port="-1" autoport="yes"/>'
+                if not defn.headless
+                else "",
+                '    <input type="keyboard" bus="usb"/>',
+                '    <input type="mouse" bus="usb"/>',
+                defn.extra_devices,
+                "  </devices>",
+                defn.extra_domain,
+                "</domain>",
+            ]
+        )
 
         return domain_fmt.format(
             self._vm_id(),
@@ -295,7 +345,7 @@ class LibvirtdState(MachineState):
             qemu,
             self.vol.path(),
             defn.vcpu,
-            defn.domain_type
+            defn.domain_type,
         )
 
     def _parse_ip(self):
@@ -303,15 +353,17 @@ class LibvirtdState(MachineState):
         return an ip v4
         """
         # alternative is VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE if qemu agent is available
-        ifaces = self.dom.interfaceAddresses(libvirt.VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE, 0)
+        ifaces = self.dom.interfaceAddresses(
+            libvirt.VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE, 0
+        )
         if ifaces is None:
             self.log("Failed to get domain interfaces")
             return
 
-        for (name, val) in ifaces.iteritems():
-            if val['addrs']:
-                for ipaddr in val['addrs']:
-                    return ipaddr['addr']
+        for (name, val) in ifaces.items():
+            if val["addrs"]:
+                for ipaddr in val["addrs"]:
+                    return ipaddr["addr"]
 
     def _wait_for_ip(self, prev_time):
         self.log_start("waiting for IP address to appear in DHCP leases...")
@@ -366,7 +418,7 @@ class LibvirtdState(MachineState):
                 self.log("Failed undefining domain")
                 return False
 
-        if (self.disk_path and os.path.exists(self.disk_path)):
+        if self.disk_path and os.path.exists(self.disk_path):
             # the deployment was created by an older NixOps version that did
             # not use the libvirtd API for uploading disk images
             os.unlink(self.disk_path)
