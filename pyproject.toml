@@ -7,7 +7,7 @@ include = [ "nixops_libvirtd/nix/*.nix" ]
 
 [tool.poetry.dependencies]
 python = "^3.7"
-nixops = {git = "https://github.com/adisbladis/nixops.git", rev = "poetry2nix-plugins"}
+nixops = {git = "https://github.com/NixOS/nixops.git"}
 libvirt-python = "^6.1"
 
 [tool.poetry.plugins."nixops"]

@@ -8,7 +8,8 @@ import shutil
 import time
 from xml.etree import ElementTree
 
-import libvirt
+# No type stubs for libvirt
+import libvirt  # type: ignore
 
 import nixops.known_hosts
 import nixops.util
@@ -19,37 +20,62 @@ from nixops.backends import MachineDefinition, MachineState
 # https://www.redhat.com/archives/libvirt-users/2017-August/msg00011.html
 
 
+from typing import Optional
+from nixops.resources import ResourceOptions
+from nixops.backends import MachineOptions
+from typing import Sequence
+
+
+
+class LibvirtdOptions(ResourceOptions):
+    URI: str
+    baseImage: Optional[str]
+    baseImageSize: int
+    cmdline: str
+    domainType: str
+    extraDevicesXML: str
+    extraDomainXML: str
+    headless: bool
+    initrd: str
+    kernel: str
+    memorySize: int
+    networks: Sequence[str]
+    storagePool: str
+    vcpu: int
+
+
+class LibvirtMachineOptions(MachineOptions):
+    libvirtd: LibvirtdOptions
+
+
 class LibvirtdDefinition(MachineDefinition):
     """Definition of a trivial machine."""
+
+    config: LibvirtMachineOptions
 
     @classmethod
     def get_type(cls):
         return "libvirtd"
 
-    def __init__(self, xml, config):
-        MachineDefinition.__init__(self, xml, config)
+    def __init__(self, name, config):
+        super().__init__(name, config)
+        self.vcpu = self.config.libvirtd.vcpu
+        self.memory_size = self.config.libvirtd.memorySize
+        self.extra_devices = self.config.libvirtd.extraDevicesXML
+        self.extra_domain = self.config.libvirtd.extraDomainXML
+        self.headless = self.config.libvirtd.headless
+        self.domain_type = self.config.libvirtd.domainType
+        self.kernel = self.config.libvirtd.kernel
+        self.initrd = self.config.libvirtd.initrd
+        self.cmdline = self.config.libvirtd.cmdline
+        self.storage_pool_name = self.config.libvirtd.storagePool
+        self.uri = self.config.libvirtd.URI
 
-        x = xml.find("attrs/attr[@name='libvirtd']/attrs")
-        assert x is not None
-        self.vcpu = x.find("attr[@name='vcpu']/int").get("value")
-        self.memory_size = x.find("attr[@name='memorySize']/int").get("value")
-        self.extra_devices = x.find("attr[@name='extraDevicesXML']/string").get("value")
-        self.extra_domain = x.find("attr[@name='extraDomainXML']/string").get("value")
-        self.headless = x.find("attr[@name='headless']/bool").get("value") == "true"
-        self.domain_type = x.find("attr[@name='domainType']/string").get("value")
-        self.kernel = x.find("attr[@name='kernel']/string").get("value")
-        self.initrd = x.find("attr[@name='initrd']/string").get("value")
-        self.cmdline = x.find("attr[@name='cmdline']/string").get("value")
-        self.storage_pool_name = x.find("attr[@name='storagePool']/string").get("value")
-        self.uri = x.find("attr[@name='URI']/string").get("value")
-
-        self.networks = [
-            k.get("value") for k in x.findall("attr[@name='networks']/list/string")
-        ]
+        self.networks = list(self.config.libvirtd.networks)
         assert len(self.networks) > 0
 
 
-class LibvirtdState(MachineState):
+class LibvirtdState(MachineState[LibvirtdDefinition]):
     private_ipv4 = nixops.util.attr_property("privateIpv4", None)
     client_public_key = nixops.util.attr_property("libvirtd.clientPublicKey", None)
     client_private_key = nixops.util.attr_property("libvirtd.clientPrivateKey", None)
