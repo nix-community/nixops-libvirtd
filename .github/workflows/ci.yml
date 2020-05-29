@@ -1,0 +1,51 @@
+name: CI
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "**" ]
+jobs:
+  parsing:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Nix
+        uses: cachix/install-nix-action@v8
+      - name: Prefetch shell.nix
+        run: 'nix-shell --run true'
+      - name: Parsing
+        run: './ci/check-nix-files.sh'
+  black:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Nix
+        uses: cachix/install-nix-action@v8
+      - name: Prefetch shell.nix
+        run: 'nix-shell --run true'
+      - name: Black
+        run: './ci/check-formatting.sh'
+  mypy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Nix
+        uses: cachix/install-nix-action@v8
+      - name: Prefetch shell.nix
+        run: 'nix-shell --run true'
+      - name: Mypy
+        run: './ci/check-mypy.sh'
+  flake8:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Nix
+        uses: cachix/install-nix-action@v8
+      - name: Prefetch shell.nix
+        run: 'nix-shell --run true'
+      - name: Mypy
+        run: './ci/check-flake8.sh'
