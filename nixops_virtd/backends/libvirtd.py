@@ -26,7 +26,6 @@ from nixops.backends import MachineOptions
 from typing import Sequence
 
 
-
 class LibvirtdOptions(ResourceOptions):
     URI: str
     baseImage: Optional[str]
@@ -236,7 +235,7 @@ class LibvirtdState(MachineState[LibvirtdDefinition]):
         temp_image_path = os.path.join(
             self.depl.tempdir, "libvirtd-image-{}".format(self.name)
         )
-        base_image = self._logged_exec(
+        self._logged_exec(
             ["nix-build"]
             + self.depl._eval_flags(self.depl.nix_exprs)
             + [

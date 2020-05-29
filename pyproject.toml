@@ -17,6 +17,7 @@ virtd = "nixops_virtd.plugin"
 nose = "^1.3.7"
 mypy = "^0.770"
 black = "^19.10b0"
+flake8 = "^3.8.2"
 
 [build-system]
 requires = ["poetry>=0.12"]
