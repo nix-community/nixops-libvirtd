@@ -32,17 +32,18 @@ networking.firewall.checkReversePath = false;
 Next we have to make sure our user has access to create images by executing:
 
 ```sh
-sudo mkdir /var/lib/libvirt/images
-sudo chgrp libvirtd /var/lib/libvirt/images
-sudo chmod g+w /var/lib/libvirt/images
+images=/var/lib/libvirt/images
+sudo mkdir $images
+sudo chgrp libvirtd $images
+sudo chmod g+w $images
 ```
 
-Create the default libvirtd storage pool:
+Create the default libvirtd storage pool for root:
 
 ```sh
-virsh pool-define-as default dir --target /var/lib/libvirt/images
-virsh pool-autostart default
-virsh pool-start default
+sudo virsh pool-define-as default dir --target $images
+sudo virsh pool-autostart default
+sudo virsh pool-start default
 ```
 
 ### Deploy the example machine
@@ -54,7 +55,7 @@ nixops create -d example-libvirtd examples/trivial-virtd.nix
 nixops deploy -d example-libvirtd
 ```
 
-Your new machine doesn't do much by defaualt, but you may connect to it by
+Your new machine doesn't do much by default, but you may connect to it by
 running:
 
 ```sh
