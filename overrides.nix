@@ -11,4 +11,5 @@ self: super: {
     nativeBuildInputs = nativeBuildInputs ++ [ pkgs.pkgconfig ];
     propagatedBuildInputs = [ pkgs.libvirt ];
   });
+
 }
