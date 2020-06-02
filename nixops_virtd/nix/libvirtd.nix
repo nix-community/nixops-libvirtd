@@ -56,6 +56,7 @@ in
     };
 
     deployment.libvirtd.headless = mkOption {
+      type = types.bool;
       default = false;
       description = ''
         If set VM  is started in headless mode,
