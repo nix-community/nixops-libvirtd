@@ -267,7 +267,11 @@ class LibvirtdState(MachineState[LibvirtdDefinition]):
         output = self._logged_exec(
             ["qemu-img", "info", "--output", "json", filename], capture_stdout=True
         )
-        return json.loads(output)
+
+        info = json.loads(output)
+        info["file-length"] = os.stat(filename).st_size
+
+        return info
 
     def _create_volume(self, virtual_size, actual_size):
         xml = """
