@@ -4,7 +4,6 @@ import copy
 import json
 import os
 import random
-import shutil
 import time
 from xml.etree import ElementTree
 
@@ -251,10 +250,7 @@ class LibvirtdState(MachineState[LibvirtdDefinition]):
             env=newEnv,
         ).rstrip()
 
-        temp_disk_path = os.path.join(
-            self.depl.tempdir, "disk-{}.qcow2".format(self.name)
-        )
-        shutil.copyfile(os.path.join(temp_image_path, "nixos.qcow2"), temp_disk_path)
+        temp_disk_path = os.path.join(temp_image_path, "nixos.qcow2")
 
         self.logger.log("uploading disk image...")
         image_info = self._get_image_info(temp_disk_path)
