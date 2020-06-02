@@ -4,7 +4,6 @@ import copy
 import json
 import os
 import random
-import shutil
 import time
 from xml.etree import ElementTree
 
@@ -251,30 +250,31 @@ class LibvirtdState(MachineState[LibvirtdDefinition]):
             env=newEnv,
         ).rstrip()
 
-        temp_disk_path = os.path.join(
-            self.depl.tempdir, "disk-{}.qcow2".format(self.name)
-        )
-        shutil.copyfile(os.path.join(temp_image_path, "nixos.qcow2"), temp_disk_path)
+        temp_disk_path = os.path.join(temp_image_path, "nixos.qcow2")
 
         self.logger.log("uploading disk image...")
         image_info = self._get_image_info(temp_disk_path)
         self._vol = self._create_volume(
-            image_info["virtual-size"], image_info["actual-size"]
+            image_info["virtual-size"], image_info["file-length"]
         )
-        self._upload_volume(temp_disk_path, image_info["actual-size"])
+        self._upload_volume(temp_disk_path, image_info["file-length"])
 
     def _get_image_info(self, filename):
         output = self._logged_exec(
             ["qemu-img", "info", "--output", "json", filename], capture_stdout=True
         )
-        return json.loads(output)
 
-    def _create_volume(self, virtual_size, actual_size):
+        info = json.loads(output)
+        info["file-length"] = os.stat(filename).st_size
+
+        return info
+
+    def _create_volume(self, virtual_size, file_length):
         xml = """
         <volume>
           <name>{name}</name>
           <capacity>{virtual_size}</capacity>
-          <allocation>{actual_size}</allocation>
+          <allocation>{file_length}</allocation>
           <target>
             <format type="qcow2"/>
           </target>
@@ -282,15 +282,15 @@ class LibvirtdState(MachineState[LibvirtdDefinition]):
         """.format(
             name="{}.qcow2".format(self._vm_id()),
             virtual_size=virtual_size,
-            actual_size=actual_size,
+            file_length=file_length,
         )
         vol = self.pool.createXML(xml)
         self._vol = vol
         return vol
 
-    def _upload_volume(self, filename, actual_size):
+    def _upload_volume(self, filename, file_length):
         stream = self.conn.newStream()
-        self.vol.upload(stream, offset=0, length=actual_size)
+        self.vol.upload(stream, offset=0, length=file_length)
 
         def read_file(stream, nbytes, f):
             return f.read(nbytes)
