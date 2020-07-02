@@ -173,8 +173,14 @@ in
     fileSystems."/".device = "/dev/disk/by-label/nixos";
 
     boot.loader.grub.version = 2;
-    boot.loader.grub.device = "/dev/sda";
+    boot.loader.grub.device = "/dev/vda";
     boot.loader.timeout = 0;
+
+    imports =
+      [ <nixpkgs/nixos/modules/profiles/qemu-guest.nix>
+      ];
+    boot.initrd.availableKernelModules = [ "virtio_pci" "virtio_blk" "virtio_net" ];
+    boot.kernelModules = [ "kvm-intel" ];
 
     services.openssh.enable = true;
     services.openssh.startWhenNeeded = false;
