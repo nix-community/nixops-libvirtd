@@ -348,6 +348,7 @@ class LibvirtdState(MachineState):
             return '''
               <interface type="network">
                 <source network="{name}"/>
+                <model type="virtio"/>
                 {mac}
               </interface>
             '''.format(
@@ -360,6 +361,7 @@ class LibvirtdState(MachineState):
             return '''
               <interface type="direct">
                 <source dev="{name}" mode="{mode}"/>
+                <model type="virtio"/>
                 {mac}
                 {vport}
               </interface>
@@ -375,6 +377,7 @@ class LibvirtdState(MachineState):
             return '''
               <interface type="bridge">
                 <source bridge="{name}"/>
+                <model type="virtio"/>
                 {mac}
                 {vport}
               </interface>
