@@ -176,9 +176,9 @@ in
     boot.loader.grub.device = "/dev/vda";
     boot.loader.timeout = 0;
 
-    imports =
-      [ <nixpkgs/nixos/modules/profiles/qemu-guest.nix>
-      ];
+    # imports =
+    #   [ <nixpkgs/nixos/modules/profiles/qemu-guest.nix>
+    #   ];
     boot.initrd.availableKernelModules = [ "virtio_pci" "virtio_blk" "virtio_net" ];
     boot.kernelModules = [ "kvm-intel" ];
 
