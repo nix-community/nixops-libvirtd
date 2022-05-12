@@ -93,7 +93,7 @@ testing = ["pytest (>=4.6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytes
 
 [[package]]
 name = "libvirt-python"
-version = "7.6.0"
+version = "8.3.0"
 description = "The libvirt virtualization API python binding"
 category = "main"
 optional = false
@@ -265,7 +265,7 @@ testing = ["pytest (>=4.6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytes
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.7"
-content-hash = "eb334f5802eab7a511a911c6208f588a7bc47114eb1a62b935069b0db768f02f"
+content-hash = "52b7ed0ef50a318741099e587c1292914c3128560d49a6002e81bf72862a6afe"
 
 [metadata.files]
 appdirs = [
@@ -297,7 +297,7 @@ importlib-metadata = [
     {file = "importlib_metadata-4.7.1.tar.gz", hash = "sha256:c4eb3dec5f697682e383a39701a7de11cd5c02daf8dd93534b69e3e6473f6b1b"},
 ]
 libvirt-python = [
-    {file = "libvirt-python-7.6.0.tar.gz", hash = "sha256:d8f9d4efdc79ad6b44bc43e49d6fa56d119895ba6c0bb000c6514ce84f19a13e"},
+    {file = "libvirt-python-8.3.0.tar.gz", hash = "sha256:e936ff747c1d72b6618eebb7236ae69c255ca9e0de6e4153d95d8b9c6b2ecfc1"},
 ]
 mccabe = [
     {file = "mccabe-0.6.1-py2.py3-none-any.whl", hash = "sha256:ab8a6258860da4b6677da4bd2fe5dc2c659cff31b3ee4f7f5d64e79735b80d42"},
