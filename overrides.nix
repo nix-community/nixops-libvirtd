@@ -12,4 +12,8 @@ self: super: {
     propagatedBuildInputs = [ pkgs.libvirt ];
   });
 
+  pathspec = super.pathspec.overridePythonAttrs({ nativeBuildInputs ? [], ... }: {
+    nativeBuildInputs = nativeBuildInputs ++ [ self.flit-core ];
+  });
+
 }
