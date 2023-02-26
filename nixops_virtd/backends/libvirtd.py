@@ -301,7 +301,10 @@ class LibvirtdState(MachineState[LibvirtdDefinition]):
 
     def _get_qemu_executable(self):
         domaincaps_xml = self.conn.getDomainCapabilities(
-            emulatorbin=None, arch="x86_64", machine=None, virttype="kvm",
+            emulatorbin=None,
+            arch="x86_64",
+            machine=None,
+            virttype="kvm",
         )
         domaincaps = ElementTree.fromstring(domaincaps_xml)
         return domaincaps.find("./path").text.strip()
