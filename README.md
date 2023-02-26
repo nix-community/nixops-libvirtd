@@ -8,8 +8,6 @@ machines in a network or cloud.
 * [Continuous build](http://hydra.nixos.org/jobset/nixops/master#tabs-jobs)
 * [Source code](https://github.com/NixOS/nixops)
 * [Issue Tracker](https://github.com/NixOS/nixops/issues)
-* [Mailing list / Google group](https://groups.google.com/forum/#!forum/nixops-users)
-* [IRC - #nixos on freenode.net](irc://irc.freenode.net/#nixos)
 
 ## Quick Start
 
