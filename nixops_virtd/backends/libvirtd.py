@@ -12,16 +12,17 @@ import libvirt  # type: ignore
 
 import nixops.known_hosts
 import nixops.util
-from nixops.backends import MachineDefinition, MachineState
 
 
 # to prevent libvirt errors from appearing on screen, see
 # https://www.redhat.com/archives/libvirt-users/2017-August/msg00011.html
 
 
-from typing import Optional
+from nixops.evaluation import eval_network
 from nixops.resources import ResourceOptions
-from nixops.backends import MachineOptions
+from nixops.backends import MachineOptions, MachineDefinition, MachineState
+from nixops.plugins.manager import PluginManager
+from typing import Optional
 from typing import Sequence
 
 
@@ -231,24 +232,15 @@ class LibvirtdState(MachineState[LibvirtdDefinition]):
         newEnv = copy.deepcopy(os.environ)
         newEnv["NIXOPS_LIBVIRTD_PUBKEY"] = self.client_public_key
 
-        temp_image_path = os.path.join(
-            self.depl.tempdir, "libvirtd-image-{}".format(self.name)
+        temp_image_path = nixops.evaluation.eval(
+            networkExpr=self.depl.network_expr,
+            uuid=self.depl.uuid,
+            deploymentName=self.depl.name or "",
+            checkConfigurationOptions=False,
+            attr="nodes.{0}.config.deployment.libvirtd.baseImage".format(self.name),
+            pluginNixExprs=PluginManager.nixexprs(),
+            build=True
         )
-        self._logged_exec(
-            ["nix-build"]
-            + self.depl._eval_flags(self.depl.nix_exprs)
-            + [
-                "--arg",
-                "checkConfigurationOptions",
-                "false",
-                "-A",
-                "nodes.{0}.config.deployment.libvirtd.baseImage".format(self.name),
-                "-o",
-                temp_image_path,
-            ],
-            capture_stdout=True,
-            env=newEnv,
-        ).rstrip()
 
         temp_disk_path = os.path.join(temp_image_path, "nixos.qcow2")
 
