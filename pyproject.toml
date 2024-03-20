@@ -16,7 +16,7 @@ virtd = "nixops_virtd.plugin"
 [tool.poetry.dev-dependencies]
 nose = "^1.3.7"
 mypy = "^0.961"
-black = "^22.6.0"
+black = "^24.3.0"
 flake8 = "^3.8.2"
 
 [build-system]
